@@ -231,6 +231,10 @@ if get_option('consolekit')
   conf.set('HAVE_CONSOLEKIT' , '1')
 endif
 
+if get_option('snap')
+  conf.set('SNAP_SUPPORT', '1')
+endif
+
 prefix = get_option('prefix')
 
 bindir = join_paths(prefix, get_option('bindir'))
