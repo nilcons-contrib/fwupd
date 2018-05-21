@@ -161,7 +161,6 @@ if get_option('gpg')
   conf.set('ENABLE_GPG', '1')
 endif
 libm = cc.find_library('m', required: false)
-udev = dependency('udev')
 uuid = dependency('uuid')
 libgcab = dependency('libgcab-1.0')
 if libgcab.version().version_compare('>= 0.8')
@@ -247,11 +246,6 @@ localedir = join_paths(prefix, get_option('localedir'))
 systemdunitdir = get_option('systemdunitdir')
 if systemdunitdir == '' and get_option('systemd')
   systemdunitdir = systemd.get_pkgconfig_variable('systemdsystemunitdir')
-endif
-
-udevdir = get_option('udevdir')
-if udevdir == ''
-  udevdir = udev.get_pkgconfig_variable('udevdir')
 endif
 
 gnome = import('gnome')
