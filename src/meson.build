@@ -44,7 +44,6 @@ libfwupdprivate = static_library(
     giounix,
     gudev,
     gusb,
-    polkit,
     soup,
     sqlite,
     libarchive,
@@ -75,7 +74,6 @@ fwupdmgr = executable(
     giounix,
     gudev,
     gusb,
-    polkit,
     soup,
     sqlite,
     libarchive,
@@ -141,7 +139,6 @@ fwupdtool = executable(
     gmodule,
     gudev,
     gusb,
-    polkit,
     soup,
     sqlite,
     valgrind,
@@ -183,6 +180,7 @@ if get_option('man')
   )
 endif
 
+if get_option('polkit')
 executable(
   'fwupd',
   resources_src,
@@ -242,6 +240,7 @@ executable(
   install : true,
   install_dir : join_paths(libexecdir, 'fwupd')
 )
+endif
 
 if get_option('tests')
   testdatadir_src = join_paths(meson.source_root(), 'data', 'tests')
@@ -292,7 +291,6 @@ if get_option('tests')
       gmodule,
       gudev,
       gusb,
-      polkit,
       soup,
       sqlite,
       valgrind,
