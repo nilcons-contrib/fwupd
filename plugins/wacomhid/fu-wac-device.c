@@ -157,17 +157,6 @@ fu_wac_device_to_string (FuDevice *device, GString *str)
 	}
 }
 
-static void
-fu_wac_device_dump (const gchar *title, const guint8 *buf, gsize sz)
-{
-	if (g_getenv ("FWUPD_WAC_VERBOSE") == NULL)
-		return;
-	g_print ("%s (%" G_GSIZE_FORMAT "):\n", title, sz);
-	for (gsize i = 0; i < sz; i++)
-		g_print ("%02x ", buf[i]);
-	g_print ("\n");
-}
-
 static gboolean
 fu_wac_device_get_feature_report (FuWacDevice *self,
 				  guint8 *buf, gsize bufsz,
@@ -178,7 +167,7 @@ fu_wac_device_get_feature_report (FuWacDevice *self,
 	guint8 cmd = buf[0];
 
 	/* hit hardware */
-	fu_wac_device_dump (fu_wac_report_id_to_string (cmd), buf, bufsz);
+	fu_wac_buffer_dump (fu_wac_report_id_to_string (cmd), buf, bufsz);
 	if (!g_usb_device_control_transfer (usb_device,
 					    G_USB_DEVICE_DIRECTION_DEVICE_TO_HOST,
 					    G_USB_DEVICE_REQUEST_TYPE_CLASS,
@@ -192,7 +181,7 @@ fu_wac_device_get_feature_report (FuWacDevice *self,
 		g_prefix_error (error, "Failed to get feature report: ");
 		return FALSE;
 	}
-	fu_wac_device_dump (fu_wac_report_id_to_string (cmd), buf, sz);
+	fu_wac_buffer_dump (fu_wac_report_id_to_string (cmd), buf, sz);
 
 	/* check packet */
 	if (sz != bufsz) {
@@ -225,7 +214,7 @@ fu_wac_device_set_feature_report (FuWacDevice *self,
 	guint8 cmd = buf[0];
 
 	/* hit hardware */
-	fu_wac_device_dump (fu_wac_report_id_to_string (cmd), buf, bufsz);
+	fu_wac_buffer_dump (fu_wac_report_id_to_string (cmd), buf, bufsz);
 	if (g_getenv ("FWUPD_WAC_EMULATE") != NULL)
 		return TRUE;
 	if (!g_usb_device_control_transfer (usb_device,
@@ -384,7 +373,7 @@ fu_wac_device_write_block (FuWacDevice *self,
 	gsize sz = 0;
 	g_autofree guint8 *buf = g_malloc (bufsz);
 
-	/* check size: FIXME -- segment? */
+	/* check size */
 	tmp = g_bytes_get_data (blob, &sz);
 	if (sz > self->write_block_sz) {
 		g_set_error (error,
@@ -510,52 +499,6 @@ fu_wac_device_quit_and_reset (FuWacDevice *self, GError **error)
 	return fu_wac_device_set_feature_report (self, buf, sizeof(buf), error);
 }
 
-static GBytes *
-fu_wac_device_get_bytes_for_addr (DfuElement *element,
-				  guint32 addr,
-				  guint32 sz,
-				  GError **error)
-{
-	GBytes *blob;
-	gsize chunk_left;
-	guint32 offset;
-
-	if (addr < dfu_element_get_address (element)) {
-		g_set_error (error,
-			     FWUPD_ERROR,
-			     FWUPD_ERROR_INTERNAL,
-			     "requested address 0x%x less than base address 0x%x",
-			     (guint) addr, (guint) dfu_element_get_address (element));
-		return NULL;
-	}
-
-	/* offset into data */
-	offset = addr - dfu_element_get_address (element);
-	blob = dfu_element_get_contents (element);
-	if (offset > g_bytes_get_size (blob)) {
-		g_set_error (error,
-			     FWUPD_ERROR,
-			     FWUPD_ERROR_NOT_FOUND,
-			     "offset 0x%x larger than data size 0x%x",
-			     (guint) offset,
-			     (guint) g_bytes_get_size (blob));
-		return NULL;
-	}
-
-	/* if we have less data than requested, pad with 0xff */
-	chunk_left = g_bytes_get_size (blob) - offset;
-	if (sz > chunk_left) {
-		const guint8 *data_blob = g_bytes_get_data (blob, NULL);
-		guint8 *data_new = g_malloc (sz);
-		memcpy (data_new, data_blob, chunk_left);
-		memset (data_new + chunk_left, 0xff, sz - chunk_left);
-		return g_bytes_new_take (data_new, sz);
-	}
-
-	/* check chunk */
-	return g_bytes_new_from_bytes (blob, offset, sz);
-}
-
 static gboolean
 fu_wac_device_write_firmware (FuDevice *device, GBytes *blob, GError **error)
 {
@@ -639,20 +582,27 @@ fu_wac_device_write_firmware (FuDevice *device, GBytes *blob, GError **error)
 			return FALSE;
 	}
 
+	/* store host CRC into flash */
+	if (!fu_wac_device_write_checksum_table (self, error))
+		return FALSE;
+
 	/* get the blobs for each chunk */
 	fd_blobs = g_hash_table_new_full (g_direct_hash, g_direct_equal,
 					  NULL, (GDestroyNotify) g_bytes_unref);
 	for (guint16 i = 0; i < self->flash_descriptors->len; i++) {
 		FuWacFlashDescriptor *fd = g_ptr_array_index (self->flash_descriptors, i);
 		GBytes *blob_block;
+		g_autoptr(GBytes) blob_tmp = NULL;
+
 		if (fu_wav_device_flash_descriptor_is_wp (fd))
 			continue;
-		blob_block = fu_wac_device_get_bytes_for_addr (element,
-							       fd->start_addr,
-							       fd->block_sz,
-							       NULL);
-		if (blob_block == NULL)
+		blob_tmp = dfu_element_get_contents_chunk (element,
+							   fd->start_addr,
+							   fd->block_sz,
+							   NULL);
+		if (blob_tmp == NULL)
 			break;
+		blob_block = dfu_utils_bytes_pad (blob_block, fd->block_sz);
 		g_hash_table_insert (fd_blobs, fd, blob_block);
 	}
 

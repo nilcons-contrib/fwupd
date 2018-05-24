@@ -68,6 +68,9 @@ guint32		 fu_wac_calculate_checksum32be		(const guint8	*data,
 							 gsize		 len);
 guint32		 fu_wac_calculate_checksum32be_bytes	(GBytes		*blob);
 const gchar	*fu_wac_report_id_to_string		(guint8		 report_id);
+void		 fu_wac_buffer_dump			(const gchar	*title,
+							 const guint8	*buf,
+							 gsize		 sz);
 
 G_END_DECLS
 

@@ -158,8 +158,7 @@ fu_wac_firmware_parse_data (DfuFirmware *firmware,
 						     "duplicate S0 without S7");
 				return FALSE;
 			}
-			image_buffer = g_string_new (lines[i]);
-			g_string_append (image_buffer, "\n");
+			image_buffer = g_string_new (NULL);
 		}
 
 		/* these are things we want to include in the image */
