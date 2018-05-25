@@ -602,7 +602,7 @@ fu_wac_device_write_firmware (FuDevice *device, GBytes *blob, GError **error)
 							   NULL);
 		if (blob_tmp == NULL)
 			break;
-		blob_block = dfu_utils_bytes_pad (blob_block, fd->block_sz);
+		blob_block = dfu_utils_bytes_pad (blob_tmp, fd->block_sz);
 		g_hash_table_insert (fd_blobs, fd, blob_block);
 	}
 
